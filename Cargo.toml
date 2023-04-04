@@ -1,0 +1,19 @@
+[package]
+name = "libp2p-feature"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = {version= "1.0.0", features = [
+    "rt", "macros", "io-util", "io-std", "sync"
+]}
+libp2p = {version= "0.51.2", features = [
+    "ping", "tokio", "mdns", "identify", "noise", "tcp", "yamux", "kad", "request-response", "macros", "relay"
+]}
+sled = "0.34.7"
+async-trait = "0.1.68"
+tracing = {version = "0.1.0"}
+futures = "0.3"
+enumn = "0.1.8"
