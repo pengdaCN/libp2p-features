@@ -72,7 +72,7 @@ async fn main() {
                 match event {
                     SwarmEvent::Behaviour(event) => {
                         match event {
-                            BehaviorEvent::Ping(e) => println!("ping event {e:?}"),
+                            BehaviorEvent::Ping(e) => {},
                             BehaviorEvent::Relay(e) => println!("relay event {e:?}"),
                             BehaviorEvent::Identify(e) => println!("relay event {e:?}"),
                             BehaviorEvent::RequestResponse(e) => {
