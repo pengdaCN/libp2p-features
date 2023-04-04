@@ -176,6 +176,7 @@ async fn handle_command(event_tx: Sender<Event>) {
                         .expect("send event failed for dial");
                 }
             }
+
             "send" => {
                 let Some(dst_peer) = args.next().and_then(|x| x.parse::<PeerId>().ok()) else { continue; };
                 let Some(content) = args.next().map(String::from) else { continue; };
@@ -241,7 +242,10 @@ fn handle_event(e: Event, swarm: &mut Swarm<Behavior>) {
             swarm.listen_on(addr).expect("listen failed");
         }
 
-        Event::Join { peer, addr } => {}
+        Event::Join { peer, addr } => {
+            swarm.behaviour_mut().kad.add_address(&peer, addr);
+            // swarm.behaviour_mut().kad.bootstrap().expect("kad bootstrap failed");
+        }
     }
 }
 

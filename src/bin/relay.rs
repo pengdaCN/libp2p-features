@@ -55,6 +55,7 @@ async fn main() {
 
             SwarmEvent::Behaviour(BehaviorEvent::Identify(event)) => match event {
                 Event::Received { peer_id, info } => {
+                    println!("relay event -> kad {peer_id} {}", info.observed_addr);
                     swarm
                         .behaviour_mut()
                         .kad
@@ -62,6 +63,10 @@ async fn main() {
                 }
                 _ => {}
             },
+
+            SwarmEvent::Behaviour(BehaviorEvent::Kad(event)) => {
+                println!("relay event -> kad {event:?}");
+            }
 
             event => println!("relay event {event:?}"),
         }
