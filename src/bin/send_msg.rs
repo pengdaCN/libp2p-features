@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use libp2p::core::transport::{upgrade, OrTransport};
 use libp2p::identity::Keypair;
+use libp2p::kad::{self, Kademlia};
 use libp2p::multiaddr::Protocol;
 use libp2p::noise::NoiseAuthenticated;
 use libp2p::relay::client as relay_client;
@@ -49,12 +50,14 @@ async fn main() {
             Default::default(),
         );
         let relay = relay_behavior;
+        let kad = Kademlia::new(peer, kad::store::MemoryStore::new(peer));
 
         Behavior {
             identify,
             ping,
             request_response,
             relay,
+            kad,
         }
     };
 
@@ -72,13 +75,14 @@ async fn main() {
                 match event {
                     SwarmEvent::Behaviour(event) => {
                         match event {
-                            BehaviorEvent::Ping(e) => {},
+                            BehaviorEvent::Ping(_) => {},
                             BehaviorEvent::Relay(e) => println!("relay event {e:?}"),
-                            BehaviorEvent::Identify(e) => println!("relay event {e:?}"),
+                            BehaviorEvent::Identify(e) => {println!("relay event {e:?}")},
                             BehaviorEvent::RequestResponse(e) => {
                                 println!("request-response event {e:?}");
                                 handle_event_request_response(&mut swarm, e);
                             }
+                            BehaviorEvent::Kad(e) => println!("kad event {e:?}"),
                         }
 
                     },
@@ -107,13 +111,16 @@ fn handle_event_request_response(
 
     match event {
         Event::Message {
-            message: request_response::Message::Request {
-                request,
-                channel,
-                .. },
+            message:
+                request_response::Message::Request {
+                    request, channel, ..
+                },
             ..
         } => {
-            println!("recv msg >>> {}", String::from_utf8(request.0).expect("invalid string"));
+            println!(
+                "recv msg >>> {}",
+                String::from_utf8(request.0).expect("invalid string")
+            );
             swarm
                 .behaviour_mut()
                 .request_response
@@ -182,6 +189,33 @@ async fn handle_command(event_tx: Sender<Event>) {
                     .expect("send event failed for send");
             }
 
+            "send_times" => {
+                let Some(times) = args.next().and_then(|x| x.parse::<usize>().ok()) else { continue; };
+                let Some(dst_peer) = args.next().and_then(|x| x.parse::<PeerId>().ok()) else { continue; };
+                let Some(content) = args.next().map(String::from) else { continue; };
+
+                for _ in 0..times {
+                    event_tx
+                        .send(Event::Send {
+                            peer: dst_peer,
+                            content: content.clone(),
+                        })
+                        .await
+                        .expect("send event failed for send");
+                }
+            }
+
+            "join" => {
+                let peer = args.next().and_then(|x| x.parse::<PeerId>().ok());
+                let addr = args.next().and_then(|x| x.parse::<Multiaddr>().ok());
+                if let (Some(peer), Some(addr)) = (peer, addr) {
+                    event_tx
+                        .send(Event::Join { peer, addr })
+                        .await
+                        .expect("send event failed for join");
+                }
+            }
+
             _ => (),
         }
     }
@@ -206,6 +240,8 @@ fn handle_event(e: Event, swarm: &mut Swarm<Behavior>) {
             println!("{addr}");
             swarm.listen_on(addr).expect("listen failed");
         }
+
+        Event::Join { peer, addr } => {}
     }
 }
 
@@ -214,6 +250,7 @@ enum Event {
     Send { peer: PeerId, content: String },
     Dial { peer: PeerId, addr: Multiaddr },
     Listen(Multiaddr),
+    Join { peer: PeerId, addr: Multiaddr },
 }
 
 #[derive(NetworkBehaviour)]
@@ -222,6 +259,7 @@ struct Behavior {
     ping: ping::Behaviour,
     request_response: request_response::Behaviour<message::Codec>,
     relay: relay_client::Behaviour,
+    kad: Kademlia<kad::store::MemoryStore>,
 }
 
 #[cfg(test)]

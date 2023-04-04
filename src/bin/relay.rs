@@ -1,7 +1,9 @@
 use futures::StreamExt;
 use libp2p::build_multiaddr;
 use libp2p::identify;
+use libp2p::identify::Event;
 use libp2p::identity::Keypair;
+use libp2p::kad::{self, Kademlia};
 use libp2p::ping;
 use libp2p::relay;
 use libp2p::swarm;
@@ -21,11 +23,13 @@ async fn main() {
         ));
         let ping = ping::Behaviour::new(Default::default());
         let relay = relay::Behaviour::new(peer, Default::default());
+        let kad = Kademlia::new(peer, kad::store::MemoryStore::new(peer));
 
         Behavior {
             identify,
             ping,
             relay,
+            kad,
         }
     };
 
@@ -48,6 +52,17 @@ async fn main() {
 
                 swarm.add_external_address(address, AddressScore::Infinite);
             }
+
+            SwarmEvent::Behaviour(BehaviorEvent::Identify(event)) => match event {
+                Event::Received { peer_id, info } => {
+                    swarm
+                        .behaviour_mut()
+                        .kad
+                        .add_address(&peer_id, info.observed_addr);
+                }
+                _ => {}
+            },
+
             event => println!("relay event {event:?}"),
         }
     }
@@ -58,4 +73,5 @@ struct Behavior {
     identify: identify::Behaviour,
     ping: ping::Behaviour,
     relay: relay::Behaviour,
+    kad: Kademlia<kad::store::MemoryStore>,
 }
